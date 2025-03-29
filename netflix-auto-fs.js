@@ -1,14 +1,17 @@
 /**
  * Netflix fullscreen add-on.
- * 
- * It very simply observers for DOM mutations using MutationObserver
- * and searches for the player and then for the fullscreen button.
- * After found, it clicks the button.  Only one time, when playing a title.
- * Then it waits for the "restart" element, which is added after the
+ *
+ * It very simply observers for DOM mutations using MutationObserver and
+ * searches for the player element and then inside it for the fullscreen
+ * button.  After found, it clicks that button to enter fullscreen.
+ * Only one time, when playing a title.  Fullscreen is not rejected because
+ * the source of the event is trusted DOM mutation observer notification.
+ * Then it waits for the "restart" element, which is added, if the
  * playback is paused for a long period of time.  User than have to restart
  * the playback manually using the "play" button.  If fullscreen is
- * exit during this break time, we reengage the auto-fullscreen mechanism.
- * It's also reengaged when user goes back to browse titles.
+ * exit during this period, we reengage the auto-fullscreen mechanism to
+ * bring the feature again as expexted. Auto fullscreen is also reengaged
+ * when user goes back to browse titles.
  */
 
 (() => {
@@ -45,14 +48,14 @@
   const guard_for_fullscreen_button = async () => {
     reject_previous && reject_previous();
     console.log('Netflix Auto-fullscreen: started observing for fullscreen button');
-    
+
     try {
       const player_view = await until_element(mount_point, 'div.watch-video--player-view');
       const fs_button = await until_element(player_view, 'button[data-uia="control-fullscreen-enter"]');
 
       console.log('Netflix Auto-fullscreen: entering fullscreen');
       fs_button.click();
-      
+
       // this element is created after a long pause, when the video has to be restarted manually
       // and I want auto-fs when the video is restarted again.
       await until_element(player_view, 'div.watch-video--playback-restart');
@@ -66,9 +69,6 @@
     }
   };
 
-  window.addEventListener("popstate", () => {
-    guard_for_fullscreen_button();
-  });
-
+  window.addEventListener("popstate", guard_for_fullscreen_button);
   guard_for_fullscreen_button();
 })();
