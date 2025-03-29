@@ -1,15 +1,13 @@
 (() => {
   const observers = [];
-  
-  const kill_pengin_obsevers = () => {
-    const copy = Array.from(observers);
-    observers.length = 0;
-    for (const observer of copy) {
+  const kill_all_obsevers = () => {
+    for (const observer of observers) {
       observer?.disconnect();
     }
-  }
+    observers.length = 0;
+  };
 
-  const create_callback_for = (selector, next) => {
+  const for_selector = (selector, next) => {
     return (root, observer) => {
       const element = root.querySelector(selector);
       if (element) {
@@ -26,34 +24,39 @@
     observer.observe(root, { subtree: true, childList: true });
   };
 
-  const mount_point = document.querySelector('div#appMountPoint');
-
   let guarding = false;
-  const guard_for_fs = () => {
+  const guard_for_fs_button = () => {
     if (guarding) {
-      console.log('NFFS already observving');
+      console.log('Netflix Auto-fullscreen: already observing');
       return;
     }
-    console.log('NFFS started observving');
-    guarding = true;
-    kill_pengin_obsevers();
 
-    start_observer(mount_point, create_callback_for('div.watch-video--player-view', player_view => {
-      start_observer(player_view, create_callback_for('button[data-uia="control-fullscreen-enter"]', element => {
+    const mount_point = document.querySelector('div#appMountPoint');
+    if (!mount_point) {
+      console.error('Netflix Auto-fullscreen: is this Netflix?');
+      return;
+    }
+
+    guarding = true;
+    console.log('Netflix Auto-fullscreen: started observing');
+    kill_all_obsevers();
+
+    start_observer(mount_point, for_selector('div.watch-video--player-view', player_view => {
+      start_observer(player_view, for_selector('button[data-uia="control-fullscreen-enter"]', fs_button => {
         guarding = false;
-        console.log('NFFS entering fullscreen');
-        element.click();
+        console.log('Netflix Auto-fullscreen: entering fullscreen');
+        fs_button.click();
 
         // this element is created after a long pause, when the video has to be restarted manually
-        start_observer(player_view, create_callback_for('div.watch-video--autoplay-blocked', _ => {
-          guard_for_fs();
+        start_observer(player_view, for_selector('div.watch-video--autoplay-blocked', _ => {
+          guard_for_fs_button();
         }));
       }))
     }));
   };
 
   window.addEventListener("popstate", () => {
-    guard_for_fs();
+    guard_for_fs_button();
   });
-  guard_for_fs();
+  guard_for_fs_button();
 })();
