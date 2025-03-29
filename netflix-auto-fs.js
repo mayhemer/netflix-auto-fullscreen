@@ -21,21 +21,22 @@
     return;
   }
 
-  let reject_previous = null;
+  let reject_running_guard = null;
 
   const wait_for_element = (root, selector, condition) => {
     return new Promise((resolve, reject) => {
       const observer = new MutationObserver(_ => {
         const element = root.querySelector(selector);
         if (condition(element)) {
-          reject_previous = null;
+          reject_running_guard = null;
           observer.disconnect();
           resolve(element);
         }
       });
-      reject_previous = () => {
+      console.assert(!reject_running_guard, 'Netflix Auto-fullscreen: concurrent observers!');
+      reject_running_guard = () => {
         console.log('Netflix Auto-fullscreen: previous observer killed')
-        reject_previous = null;
+        reject_running_guard = null;
         observer.disconnect();
         reject();
       };
@@ -47,7 +48,7 @@
   const while_element = (root, selector) => wait_for_element(root, selector, e => e == null);
 
   const guard_for_fullscreen_button = async () => {
-    reject_previous && reject_previous();
+    reject_running_guard && reject_running_guard();
     console.log('Netflix Auto-fullscreen: started observing for fullscreen button');
 
     try {
