@@ -1,3 +1,16 @@
+/**
+ * Netflix fullscreen add-on.
+ * 
+ * It very simply observers for DOM mutations using MutationObserver
+ * and searches for the player and then for the fullscreen button.
+ * After found, it clicks the button.  Only one time, when playing a title.
+ * Then it waits for the "restart" element, which is added after the
+ * playback is paused for a long period of time.  User than have to restart
+ * the playback manually using the "play" button.  If fullscreen is
+ * exit during this break time, we reengage the auto-fullscreen mechanism.
+ * It's also reengaged when user goes back to browse titles.
+ */
+
 (() => {
   const mount_point = document.querySelector('div#appMountPoint');
   if (!mount_point) {
@@ -6,6 +19,7 @@
   }
 
   let reject_previous = null;
+
   const until_element = (root, selector, condition = e => e) => {
     return new Promise((resolve, reject) => {
       const observer = new MutationObserver(_ => {
@@ -26,7 +40,9 @@
     });
   };
 
-  const guard_for_fs_button = async () => {
+  const while_element = (root, selector) => until_element(root, selector, e => !e);
+
+  const guard_for_fullscreen_button = async () => {
     reject_previous && reject_previous();
     console.log('Netflix Auto-fullscreen: started observing for fullscreen button');
     
@@ -42,17 +58,17 @@
       await until_element(player_view, 'div.watch-video--playback-restart');
 
       console.log('Netflix Auto-fullscreen: waiting for playback restart');
-      await until_element(player_view, 'div.watch-video--playback-restart', e => !e);
+      await while_element(player_view, 'div.watch-video--playback-restart');
 
-      document.fullscreenElement || guard_for_fs_button();
+      document.fullscreenElement || guard_for_fullscreen_button();
     } catch(ex) {
       ex && console.error(ex);
     }
   };
 
   window.addEventListener("popstate", () => {
-    guard_for_fs_button();
+    guard_for_fullscreen_button();
   });
 
-  guard_for_fs_button();
+  guard_for_fullscreen_button();
 })();
