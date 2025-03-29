@@ -7,7 +7,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.netflix.com/*"],
-      "js": ["main.js"]
+      "js": ["netflix-auto-fs.js"]
     }
   ]
 }
