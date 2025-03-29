@@ -23,7 +23,7 @@
 
   let reject_previous = null;
 
-  const until_element = (root, selector, condition = e => e) => {
+  const wait_for_element = (root, selector, condition) => {
     return new Promise((resolve, reject) => {
       const observer = new MutationObserver(_ => {
         const element = root.querySelector(selector);
@@ -43,7 +43,8 @@
     });
   };
 
-  const while_element = (root, selector) => until_element(root, selector, e => !e);
+  const until_element = (root, selector) => wait_for_element(root, selector, e => e != null);
+  const while_element = (root, selector) => wait_for_element(root, selector, e => e == null);
 
   const guard_for_fullscreen_button = async () => {
     reject_previous && reject_previous();
