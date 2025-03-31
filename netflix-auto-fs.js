@@ -32,8 +32,9 @@
       }
       const observer = new MutationObserver(_ => {
         const element = root.querySelector(selector);
-        if (condition(element)) {
-          conclude(observer, element);
+        const result = condition(element);
+        if (result) {
+          conclude(observer, result);
         }
       });
       console.assert(!reject_running_guard, 'Netflix Auto-fullscreen: concurrent observers!');
@@ -61,7 +62,8 @@
         await until_element(player_view, 'div.watch-video--playback-restart');
         
         console.log(`Netflix Auto-fullscreen: #${order} waiting for playback restart`);
-        await while_element(player_view, 'div.watch-video--playback-restart');
+        const watch_video = mount_point.querySelector('div.watch-video');
+        await while_element(watch_video, 'div.watch-video--playback-restart');
       } while (!document.fullscreenElement);
     } catch(ex) {
       ex && console.error(ex);
