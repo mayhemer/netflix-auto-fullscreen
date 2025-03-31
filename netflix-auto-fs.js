@@ -25,52 +25,51 @@
 
   const wait_for_element = (root, selector, condition) => {
     return new Promise((resolve, reject) => {
+      const conclude = (observer, element) => {
+        reject_running_guard = null;
+        observer.disconnect();
+        element ? resolve(element) : reject();
+      }
       const observer = new MutationObserver(_ => {
         const element = root.querySelector(selector);
         if (condition(element)) {
-          reject_running_guard = null;
-          observer.disconnect();
-          resolve(element);
+          conclude(observer, element);
         }
       });
       console.assert(!reject_running_guard, 'Netflix Auto-fullscreen: concurrent observers!');
-      reject_running_guard = () => {
-        console.log('Netflix Auto-fullscreen: current observer killed')
-        reject_running_guard = null;
-        observer.disconnect();
-        reject();
-      };
+      reject_running_guard = () => conclude(observer);
       observer.observe(root, { subtree: true, childList: true });
     });
   };
 
-  const until_element = (root, selector) => wait_for_element(root, selector, e => e != null);
-  const while_element = (root, selector) => wait_for_element(root, selector, e => e == null);
+  const until_element = (root, selector) => wait_for_element(root, selector, e => e);
+  const while_element = (root, selector) => wait_for_element(root, selector, e => !e);
 
-  const guard_for_fullscreen_button = async () => {
-    reject_running_guard && reject_running_guard();
-    console.log('Netflix Auto-fullscreen: started observing for fullscreen button');
-
+  const guard_for_fullscreen_button = async (order) => {
+    reject_running_guard && reject_running_guard();    
     try {
       do {
+        console.log(`Netflix Auto-fullscreen: #${order} started observing for fullscreen button`);
         const player_view = await until_element(mount_point, 'div.watch-video--player-view');
         const fs_button = await until_element(player_view, 'button[data-uia="control-fullscreen-enter"]');
         
-        console.log('Netflix Auto-fullscreen: entering fullscreen');
+        console.log(`Netflix Auto-fullscreen: #${order} entering fullscreen`);
         fs_button.click();
         
         // this element is created after a long pause, when the video has to be restarted manually
         // and I want auto-fs when the video is restarted again.
         await until_element(player_view, 'div.watch-video--playback-restart');
         
-        console.log('Netflix Auto-fullscreen: waiting for playback restart');
+        console.log(`Netflix Auto-fullscreen: #${order} waiting for playback restart`);
         await while_element(player_view, 'div.watch-video--playback-restart');
       } while (!document.fullscreenElement);
     } catch(ex) {
       ex && console.error(ex);
     }
+    console.log(`Netflix Auto-fullscreen: #${order} exited`);
   };
 
-  window.addEventListener("popstate", guard_for_fullscreen_button);
-  guard_for_fullscreen_button();
+  let guard_counter = 0;
+  window.addEventListener("popstate", _ => guard_for_fullscreen_button(++guard_counter));
+  guard_for_fullscreen_button(++guard_counter);
 })();
