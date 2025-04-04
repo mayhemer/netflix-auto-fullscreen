@@ -31,9 +31,9 @@
     console.error('Netflix Auto-fullscreen: no #appMountPoint');
     return;
   }
-  
+
   let reject_running_guard = null;
-  
+
   const observe_for = (root, condition) => {
     return new Promise((resolve, reject) => {
       const conclude = (observer, result) => {
@@ -52,23 +52,23 @@
       observer.observe(root, { subtree: true, childList: true });
     });
   };
-  
+
   const until_element = (root, selector) => observe_for(root, root => root.querySelector(selector));
   const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
   const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
-  
+
   const guard_for_fullscreen_button = async (order) => {
-    reject_running_guard && reject_running_guard();    
+    reject_running_guard && reject_running_guard();
     try {
       guarding: while (true) {
         console.log(`Netflix Auto-fullscreen: #${order} started observing for player view`);
         const player_view = await until_element(mount_point, 'div.watch-video--player-view');
         console.log(`Netflix Auto-fullscreen: #${order} started observing for fullscreen button`);
         const fs_button = await until_element(player_view, 'button[data-uia="control-fullscreen-enter"]');
-        
+
         console.log(`Netflix Auto-fullscreen: #${order} entering fullscreen`);
         fs_button.click();
-        
+
         restart: while (true) {
           let watch_video = mount_point.querySelector('div.watch-video');
           // playback-restart element is created after a long pause, when the video has to be restarted manually
