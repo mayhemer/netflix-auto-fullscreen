@@ -1,6 +1,6 @@
 {
   "description": "Automatically enters the fullscreen mode when playing a title",
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "Netflix Auto Fullscreen",
   "version": "1.1.0",
   "permissions": ["storage"],
@@ -13,12 +13,14 @@
   ],
 
   "options_ui": {
-    "page": "options.html"
+    "page": "options.html",
+    "browser_style": true
   },
-
+  
   "browser_specific_settings": {
     "gecko": {
-        "id": "{6dfd8435-cce2-4133-99e3-cd338dfcae67}"
+      "id": "{6dfd8435-cce2-4133-99e3-cd338dfcae67}",
+      "strict_min_version": "58.0"
     }
   }
 }
