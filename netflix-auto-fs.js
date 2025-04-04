@@ -15,24 +15,27 @@
  */
 
 (() => {
+  let config = {
+    fs_on_short_play: true
+  };
+
   const mount_point = document.querySelector('div#appMountPoint');
   if (!mount_point) {
     console.error('Netflix Auto-fullscreen: no #appMountPoint');
     return;
   }
-
+  
   let reject_running_guard = null;
-
-  const wait_for_element = (root, selector, condition) => {
+  
+  const observe_for = (root, condition) => {
     return new Promise((resolve, reject) => {
-      const conclude = (observer, element) => {
+      const conclude = (observer, result) => {
         reject_running_guard = null;
         observer.disconnect();
-        element ? resolve(element) : reject();
-      }
+        result ? resolve(result) : reject();
+      };
       const observer = new MutationObserver(_ => {
-        const element = root.querySelector(selector);
-        const result = condition(element);
+        const result = condition(root);
         if (result) {
           conclude(observer, result);
         }
@@ -42,29 +45,47 @@
       observer.observe(root, { subtree: true, childList: true });
     });
   };
-
-  const until_element = (root, selector) => wait_for_element(root, selector, e => e);
-  const while_element = (root, selector) => wait_for_element(root, selector, e => !e);
-
+  
+  const until_element = (root, selector) => observe_for(root, root => root.querySelector(selector));
+  const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
+  const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
+  
   const guard_for_fullscreen_button = async (order) => {
     reject_running_guard && reject_running_guard();    
     try {
-      do {
-        console.log(`Netflix Auto-fullscreen: #${order} started observing for fullscreen button`);
+      guarding: while (true) {
+        console.log(`Netflix Auto-fullscreen: #${order} started observing for player view`);
         const player_view = await until_element(mount_point, 'div.watch-video--player-view');
+        console.log(`Netflix Auto-fullscreen: #${order} started observing for fullscreen button`);
         const fs_button = await until_element(player_view, 'button[data-uia="control-fullscreen-enter"]');
         
         console.log(`Netflix Auto-fullscreen: #${order} entering fullscreen`);
         fs_button.click();
         
-        // this element is created after a long pause, when the video has to be restarted manually
-        // and I want auto-fs when the video is restarted again.
-        await until_element(player_view, 'div.watch-video--playback-restart');
-        
-        console.log(`Netflix Auto-fullscreen: #${order} waiting for playback restart`);
-        const watch_video = mount_point.querySelector('div.watch-video');
-        await while_element(watch_video, 'div.watch-video--playback-restart');
-      } while (!document.fullscreenElement);
+        restart: do {
+          let watch_video = mount_point.querySelector('div.watch-video');
+          // playback-restart element is created after a long pause, when the video has to be restarted manually
+          // and I want auto-fs when the video is restarted again.
+          // playback-notification element is created when we play a video after a short pause, and this code
+          // allows re-entering of fullscreen on that action.  It's disputable, if I want this behavior.
+          const found = await until_one_of(watch_video, ['div.watch-video--playback-restart', 'div.playback-notification--play']);
+          switch (found) {
+            case 'div.playback-notification--play':
+              await while_element(watch_video, found);
+              if (config.fs_on_short_play) {
+                continue guarding;
+              } else {
+                continue restart;
+              }
+              break;
+            case 'div.watch-video--playback-restart':
+              console.log(`Netflix Auto-fullscreen: #${order} waiting for playback restart`);
+              watch_video = mount_point.querySelector('div.watch-video');
+              await while_element(watch_video, found);
+              break;
+          }
+        } while (document.fullscreenElement);
+      }
     } catch(ex) {
       ex && console.error(ex);
     }
