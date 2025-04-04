@@ -18,7 +18,6 @@
 
   "browser_specific_settings": {
     "gecko": {
-        "id": "netflix-fs@janbambas.cz",
-        "strict_min_version": "57.0a1"
+        "id": "{6dfd8435-cce2-4133-99e3-cd338dfcae67}"
     }
 }}
