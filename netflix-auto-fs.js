@@ -16,7 +16,7 @@
 
 (async () => {
   let config = {
-    fs_on_short_play: true
+    fs_on_short_play: "true"
   };
 
   const load_config = async () => {
@@ -79,7 +79,7 @@
           switch (found) {
             case 'div.playback-notification--play':
               await while_element(watch_video, found);
-              if (config.fs_on_short_play === "true") {
+              if (config.fs_on_short_play == "true") {
                 continue guarding;
               } else {
                 continue restart;

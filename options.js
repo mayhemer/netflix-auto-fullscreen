@@ -8,7 +8,7 @@ async function save_options_behavior(e) {
 
 async function restore_options() {
   const s = await browser.storage.sync.get({
-    fs_on_short_play: true
+    fs_on_short_play: "true"
   });
   const input = document.querySelector(`input[name=behavior][value=${s.fs_on_short_play}]`);
   input.checked = true;
