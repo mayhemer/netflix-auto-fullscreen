@@ -14,10 +14,17 @@
  * reengaged when user goes back to browse titles, via the "popstate" event.
  */
 
-(() => {
+(async () => {
   let config = {
     fs_on_short_play: true
   };
+
+  const load_config = async () => {
+    config = await browser.storage.sync.get(config);
+    console.log('Netflix Auto-fullscreen: using configuration', config);
+  }
+  browser.storage.onChanged.addListener(load_config);
+  await load_config();
 
   const mount_point = document.querySelector('div#appMountPoint');
   if (!mount_point) {
@@ -62,7 +69,7 @@
         console.log(`Netflix Auto-fullscreen: #${order} entering fullscreen`);
         fs_button.click();
         
-        restart: do {
+        restart: while (true) {
           let watch_video = mount_point.querySelector('div.watch-video');
           // playback-restart element is created after a long pause, when the video has to be restarted manually
           // and I want auto-fs when the video is restarted again.
@@ -72,7 +79,7 @@
           switch (found) {
             case 'div.playback-notification--play':
               await while_element(watch_video, found);
-              if (config.fs_on_short_play) {
+              if (config.fs_on_short_play === "true") {
                 continue guarding;
               } else {
                 continue restart;
@@ -84,7 +91,11 @@
               await while_element(watch_video, found);
               break;
           }
-        } while (document.fullscreenElement);
+          // Having the condition here, rather than in the loop statement, to allow `continue guarding` regardless of the fullscreen state.
+          if (!document.fullscreenElement) {
+            break restart;
+          }
+        }
       }
     } catch(ex) {
       ex && console.error(ex);

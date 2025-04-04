@@ -1,0 +1,36 @@
+body {
+  background-color: light-dark(white, #23222b);
+}
+
+form {
+  display: block;
+  h2 {
+    width: 100%;
+    clear: both;
+  }
+  padding: 1em;
+  & div.group {
+    padding: 0 0 1em;
+
+    p.option {
+      display: flex;
+      flex-direction: row;
+      gap: 1em;
+      input {
+        float: left;
+        height: 1em;
+      }
+      label {
+        float: right;
+        span.title {
+          font-weight: bold;
+          font-size: larger;
+          display: block;
+        }
+        span.desc {
+          color: light-dark(gray, #aaa);
+        }
+      }
+    }
+  }
+}

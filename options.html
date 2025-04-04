@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+
+<html>
+
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="options.css">
+    <meta name="color-scheme" content="dark light">
+  </head>
+
+  <body>
+    <form class=""">
+      <h2>Choose behavior</h2>
+      <div class="group">
+        <p class="option">
+          <input type="radio" id="behavior-false" name="behavior" value="false" />
+          <label for="behavior-false">
+            <span class="title">Enter fullscreen on first play only</span>
+            <span class="desc">Select this option to automatically enter the fullscsreen mode on the first play of a title.
+            However, if you pause the player and exit fullscreen, unpausing it will leave you in windowed mode.</span>
+          </label>
+        </p>
+
+        <p class="option">
+          <input type="radio" id="behavior-true" name="behavior" value="true" />
+          <label for="behavior-true">
+            <span class="title">Ensure fullscreen everytime you play or unpause</span>
+            <span class="desc">Select this option to automatically enter the fullscsreen mode either you play a title the first time or just unpause a windowed player.</span>
+          </label>
+        </p>
+      </div>
+    </form>
+    <script src="options.js"></script>
+  </body>
+
+</html>
