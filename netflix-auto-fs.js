@@ -6,29 +6,27 @@
  * fullscreen without a need to press the fullscreen button by hand.
  *
  * Technicalities:
- * The addon click()s the fullscreen button directly in the player UI to enter
- * the fullscreen mode, when a title is played. We wait for this button using
- * DOM MutaionObserver.  After it's found, it's clicked, and if the event is
- * processed soon enough after the user interaction, fullscreen is entered.
+ * The addon requests fullscreen on the player element directly, when a title
+ * playback is started.  We wait for the player element using DOM MutaionObserver.
+ * 
+ * When autoplay is blocked, we assign a click handler to request fullscreen
+ * on clicking the play-blocked play button.
  *
  * Then, we wait for one of two things: either appearance of a restart button
  * or of the "play" notification.  In the first case, it means the player
  * has been paused for a long time and user now has to restart the playback
- * by pressing the restart play button.  After that click, we again start
- * waiting for the fullscreen button.
+ * by pressing the restart play button.  After that click, we request fullscreen
+ * again.
  *
- * In case of the "play" notification hit, what happens on simply unpausing
- * the player, then, when enabled by preferences, we again look for
- * the fullscreen button to click() it.  Cycle then loops by again waiting
- * for either the restart element or the "play" notification.
+ * In case of the "play" notification hit, which happens on simply unpausing
+ * the player, then, when enabled by preferences, we again requst fullscreen.
+ * Cycle then loops by again waiting for either the restart element or the "play"
+ * notification.
  *
  * Note: there is a limitation when this extension actually works.  It depends
  * on the delay between the user interaction making a title to start playback
- * and the fullscreen button appearing in the UI.  If the delay is too long
- * the fullscreen request made by the Netflix code behind the fullscreen button
- * is rejected by the browser for security reasons.
- * For this reason we try to request fullscreen as soon as the base player 
- * element appears, same way as the Netflix code does itself.
+ * and the video player element appearing in the UI.  If the delay is too long
+ * the fullscreen request made may get rejected by the browser for security reasons.
  */
 
 (async () => {
@@ -77,41 +75,50 @@
   const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
   const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
 
-  const guard_for_fullscreen_button = async (order) => {
+  const guard_for_fullscreen = async (id) => {
     reject_running_guard && reject_running_guard();
+
+    const request_fs = watch_video => {
+      if (!document.fullscreenElement) {
+        log(id, `requsting fullscreen`);
+        watch_video.requestFullscreen();
+      }
+    };
 
     try {
       guarding: while (true) {
-        log(order, `started observing for video`);
+        log(id, `started observing for video player`);
         let watch_video = await until_element(mount_point, 'div.watch-video');
+        // Request fullscreen ASAP to be close to the user interaction.
+        request_fs(watch_video);
 
-        // Request fullscreen ASAP to be close to the user interaction
-        if (!document.fullscreenElement) {
-          log(order, `requsting fullscreen`);
-          watch_video.requestFullscreen();
-        }
-
-        log(order, `started observing for player-view`);
+        // This is a child element we are using to save some observer notitications overhead.
+        log(id, `started observing for player-view element`);
         const player_view = await until_element(mount_point, 'div.watch-video--player-view');
 
-        // In case forcing fullscreen on the watch-video element, try again with the fullscreen button as a fallback.
-        log(order, `started observing for fullscreen button or fullscreen state`);
-        const fs_element = await until_element_or_fs(player_view, 'button[data-uia="control-fullscreen-enter"]');
-        if (fs_element == document.fullscreenElement) {
-          log(order, `fullscreen on!`);
+        // Request fullscreen again in case the watch-video has recycled.
+        watch_video = mount_point.querySelector('div.watch-video');
+        request_fs(watch_video);
+
+        log(id, `started observing for fullscreen or blocked play button`);
+        const fs_or_blocked_element = await until_element_or_fs(player_view, 'button[data-uia="player-blocked-play"]');
+        if (fs_or_blocked_element === document.fullscreenElement) {
+          log(id, `fullscreen on!`);
         } else {
-          log(order, `clicking the fullscreen button`);
-          fs_element.click();
+          log(id, 'will request fullscreen on player-blocked-play button click');
+          fs_or_blocked_element.addEventListener('click', _ => request_fs(watch_video));
+          await while_element(player_view, 'button[data-uia="player-blocked-play"]');
         }
 
         restart: while (true) {
-          // This element is recreated after restart, need to re-query it here.
+          // This element is often recycled, rather re-query it here.
           watch_video = mount_point.querySelector('div.watch-video');
-          // playback-restart element is created after a long pause, when the video has to be restarted manually
+          // 'playback-restart' element is created after a long pause, when the video has to be restarted manually
           // and I want auto-fs when the video is restarted again.
-          // playback-notification element is created when we play a video after a short pause, and this code
-          // allows re-entering of fullscreen on that action.  It's disputable, if I want this behavior.
-          log(order, `waiting for pause/restart`);
+          // 'playback-notification' element is created when we unpause a video after a short break, and this code
+          // allows re-entering of fullscreen on that action.  It's disputable if I want this behavior, 
+          // hence a preference was made for users to decide.
+          log(id, `waiting for pause/restart`);
           const found = await until_one_of(watch_video, ['div.watch-video--playback-restart', 'div.playback-notification--play']);
           switch (found) {
             case 'div.playback-notification--play':
@@ -123,8 +130,13 @@
               }
               break;
             case 'div.watch-video--playback-restart':
-              log(order, `waiting for playback restart`);
               watch_video = mount_point.querySelector('div.watch-video');
+
+              // NOTE: This may not work, as after the restart the watch-video element is recycled.
+              const restart_play_button = watch_video.querySelector('div.watch-video--playback-restart button');
+              restart_play_button.addEventListener('click', _ => request_fs(watch_video));
+              
+              log(id, `waiting for playback restart`);
               await while_element(watch_video, found);
               break;
           }
@@ -137,10 +149,10 @@
     } catch(ex) {
       ex && console.error(ex);
     }
-    log(order, `exited`);
+    log(id, `exited`);
   };
 
   let guard_counter = 0;
-  window.addEventListener("popstate", _ => guard_for_fullscreen_button(++guard_counter));
-  guard_for_fullscreen_button(++guard_counter);
+  window.addEventListener("popstate", _ => guard_for_fullscreen(++guard_counter));
+  guard_for_fullscreen(++guard_counter);
 })();
