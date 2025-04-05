@@ -1,34 +1,53 @@
 /**
- * Netflix fullscreen add-on.
+ * Netflix Auto Fullscreen add-on.
  *
- * It very simply observers for DOM mutations using MutationObserver and
- * searches for the player element and then inside it for the fullscreen
- * button.  After found, it clicks that button to enter fullscreen.
- * Only one time, when playing a title.  Fullscreen is not rejected because
- * the source of the event is near a user interaction (pressing play button).
- * Then it waits for the "restart" element, which is added, if the
- * playback is paused for a long period of time.  User than have to restart
- * the playback manually using the "play" button again.  If fullscreen is
- * exit during this period, we reengage the auto-fullscreen mechanism to
- * bring the feature again as expexted.  The observing mechanism is also
- * reengaged when user goes back to browse titles, via the "popstate" event.
+ * Purpose is to enter fullscreen whereever a title is played, so one can
+ * just press the play button and then take a seat and immediately watch in
+ * fullscreen without a need to press the fullscreen button by hand.
+ *
+ * Technicalities:
+ * The addon click()s the fullscreen button directly in the player UI to enter
+ * the fullscreen mode, when a title is played. We wait for this button using
+ * DOM MutaionObserver.  After it's found, it's clicked, and if the event is
+ * processed soon enough after the user interaction, fullscreen is entered.
+ *
+ * Then, we wait for one of two things: either appearance of a restart button
+ * or of the "play" notification.  In the first case, it means the player
+ * has been paused for a long time and user now has to restart the playback
+ * by pressing the restart play button.  After that click, we again start
+ * waiting for the fullscreen button.
+ *
+ * In case of the "play" notification hit, what happens on simply unpausing
+ * the player, then, when enabled by preferences, we again look for
+ * the fullscreen button to click() it.  Cycle then loops by again waiting
+ * for either the restart element or the "play" notification.
+ *
+ * Note: there is a limitation when this extension actually works.  It depends
+ * on the delay between the user interaction making a title to start playback
+ * and the fullscreen button appearing in the UI.  If the delay is too long
+ * the fullscreen request made by the Netflix code behind the fullscreen button
+ * is rejected by the browser for security reasons.
+ * For this reason we try to request fullscreen as soon as the base player 
+ * element appears, same way as the Netflix code does itself.
  */
 
 (async () => {
+  const log = (...args) => console.log(`Netflix Auto-fullscreen:`, ...args);
+
   let config = {
     fs_on_short_play: "true"
   };
 
   const load_config = async () => {
     config = await browser.storage.sync.get(config);
-    console.log('Netflix Auto-fullscreen: using configuration', config);
+    log('using configuration', config);
   }
   browser.storage.onChanged.addListener(load_config);
   await load_config();
 
   const mount_point = document.querySelector('div#appMountPoint');
   if (!mount_point) {
-    console.error('Netflix Auto-fullscreen: no #appMountPoint');
+    log('no #appMountPoint');
     return;
   }
 
@@ -54,27 +73,45 @@
   };
 
   const until_element = (root, selector) => observe_for(root, root => root.querySelector(selector));
+  const until_element_or_fs = (root, selector) => observe_for(root, root => root.querySelector(selector) || document.fullscreenElement);
   const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
   const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
 
   const guard_for_fullscreen_button = async (order) => {
     reject_running_guard && reject_running_guard();
+
     try {
       guarding: while (true) {
-        console.log(`Netflix Auto-fullscreen: #${order} started observing for player view`);
-        const player_view = await until_element(mount_point, 'div.watch-video--player-view');
-        console.log(`Netflix Auto-fullscreen: #${order} started observing for fullscreen button`);
-        const fs_button = await until_element(player_view, 'button[data-uia="control-fullscreen-enter"]');
+        log(order, `started observing for video`);
+        let watch_video = await until_element(mount_point, 'div.watch-video');
 
-        console.log(`Netflix Auto-fullscreen: #${order} entering fullscreen`);
-        fs_button.click();
+        // Request fullscreen ASAP to be close to the user interaction
+        if (!document.fullscreenElement) {
+          log(order, `requsting fullscreen`);
+          watch_video.requestFullscreen();
+        }
+
+        log(order, `started observing for player-view`);
+        const player_view = await until_element(mount_point, 'div.watch-video--player-view');
+
+        // In case forcing fullscreen on the watch-video element, try again with the fullscreen button as a fallback.
+        log(order, `started observing for fullscreen button or fullscreen state`);
+        const fs_element = await until_element_or_fs(player_view, 'button[data-uia="control-fullscreen-enter"]');
+        if (fs_element == document.fullscreenElement) {
+          log(order, `fullscreen on!`);
+        } else {
+          log(order, `clicking the fullscreen button`);
+          fs_element.click();
+        }
 
         restart: while (true) {
-          let watch_video = mount_point.querySelector('div.watch-video');
+          // This element is recreated after restart, need to re-query it here.
+          watch_video = mount_point.querySelector('div.watch-video');
           // playback-restart element is created after a long pause, when the video has to be restarted manually
           // and I want auto-fs when the video is restarted again.
           // playback-notification element is created when we play a video after a short pause, and this code
           // allows re-entering of fullscreen on that action.  It's disputable, if I want this behavior.
+          log(order, `waiting for pause/restart`);
           const found = await until_one_of(watch_video, ['div.watch-video--playback-restart', 'div.playback-notification--play']);
           switch (found) {
             case 'div.playback-notification--play':
@@ -86,12 +123,12 @@
               }
               break;
             case 'div.watch-video--playback-restart':
-              console.log(`Netflix Auto-fullscreen: #${order} waiting for playback restart`);
+              log(order, `waiting for playback restart`);
               watch_video = mount_point.querySelector('div.watch-video');
               await while_element(watch_video, found);
               break;
           }
-          // Having the condition here, rather than in the loop statement, to allow `continue guarding` regardless of the fullscreen state.
+          // Having the condition here, rather than in the loop statement, to allow `continue restart` regardless of the fullscreen state.
           if (!document.fullscreenElement) {
             break restart;
           }
@@ -100,7 +137,7 @@
     } catch(ex) {
       ex && console.error(ex);
     }
-    console.log(`Netflix Auto-fullscreen: #${order} exited`);
+    log(order, `exited`);
   };
 
   let guard_counter = 0;
