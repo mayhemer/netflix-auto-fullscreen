@@ -1,6 +1,6 @@
 /**
  * Netflix Auto Fullscreen add-on for Firefox  and Chrome.
- * 
+ *
  * For details see README.md
  */
 
@@ -60,6 +60,10 @@
       }
     };
 
+    const assign_fs_on_click = (watch_video, element) => {
+      element.addEventListener('click', _ => request_fs(watch_video));
+    }
+
     try {
       guarding: while (true) {
         log(id, `started observing for video player`);
@@ -76,12 +80,13 @@
         request_fs(watch_video);
 
         log(id, `started observing for fullscreen or blocked play button`);
-        const fs_or_blocked_element = await until_element_or_fs(player_view, 'button[data-uia="player-blocked-play"]');
-        if (fs_or_blocked_element === document.fullscreenElement) {
+        const fs_or_blocked_button = await until_element_or_fs(player_view, 'button[data-uia="player-blocked-play"]');
+        if (fs_or_blocked_button === document.fullscreenElement) {
           log(id, `fullscreen on!`);
         } else {
           log(id, 'will request fullscreen on player-blocked-play button click');
-          fs_or_blocked_element.addEventListener('click', _ => request_fs(watch_video));
+          assign_fs_on_click(watch_video, fs_or_blocked_button);
+          assign_fs_on_click(watch_video, player_view.querySelector('div.watch-video--autoplay-blocked'));
           await while_element(player_view, 'button[data-uia="player-blocked-play"]');
         }
 
@@ -91,7 +96,7 @@
           // 'playback-restart' element is created after a long pause, when the video has to be restarted manually
           // and I want auto-fs when the video is restarted again.
           // 'playback-notification' element is created when we unpause a video after a short break, and this code
-          // allows re-entering of fullscreen on that action.  It's disputable if I want this behavior, 
+          // allows re-entering of fullscreen on that action.  It's disputable if I want this behavior,
           // hence a preference was made for users to decide.
           log(id, `waiting for pause/restart`);
           const found = await until_one_of(watch_video, ['div.watch-video--playback-restart', 'div.playback-notification--play']);
@@ -106,8 +111,7 @@
               break;
             case 'div.watch-video--playback-restart':
               watch_video = mount_point.querySelector('div.watch-video');
-              const restart_play_button = watch_video.querySelector('div.watch-video--playback-restart button');
-              restart_play_button.addEventListener('click', _ => request_fs(watch_video));             
+              assign_fs_on_click(watch_video, watch_video.querySelector('div.watch-video--playback-restart button'));
               log(id, `waiting for playback restart`);
               await while_element(watch_video, found);
               break;
