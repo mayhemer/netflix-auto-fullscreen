@@ -8,12 +8,12 @@
   "content_scripts": [
     {
       "matches": ["https://www.netflix.com/*"],
-      "js": ["browser-polyfill.js", "netflix-auto-fs.js"]
+      "js": ["src/browser-polyfill.js", "src/netflix-auto-fs.js"]
     }
   ],
 
   "options_ui": {
-    "page": "options.html"
+    "page": "options/options.html"
   },
   
   "browser_specific_settings": {

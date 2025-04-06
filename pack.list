@@ -1,8 +1,9 @@
-README.md
-browser-polyfill.js
-browser-polyfill.js.map
 manifest.json
-netflix-auto-fs.js
-options.css
-options.html
-options.js
+src/browser-polyfill.js
+src/browser-polyfill.js.map
+src/netflix-auto-fs.js
+options/options.css
+options/options.html
+options/options.js
+README.md
+TERMS.md
