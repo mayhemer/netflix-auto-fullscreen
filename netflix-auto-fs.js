@@ -119,7 +119,7 @@
         }
       }
     } catch(ex) {
-      ex && err(ex);
+      ex && err(id, ex);
     }
     log(id, `exited`);
   };
