@@ -1,4 +1,6 @@
 README.md
+browser-polyfill.js
+browser-polyfill.js.map
 manifest.json
 netflix-auto-fs.js
 options.css

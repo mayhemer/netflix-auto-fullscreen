@@ -1,9 +1,12 @@
 body {
   background-color: light-dark(white, #23222b);
+  font: caption;
+  font-size: 75%;
 }
 
 form {
   display: block;
+  line-height: 1.25;
   h2 {
     width: 100%;
     clear: both;

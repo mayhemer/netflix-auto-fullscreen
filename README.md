@@ -1,4 +1,4 @@
-Netflix Auto Fullscreen add-on for Firefox
+Netflix Auto Fullscreen add-on for Firefox and Chrome
 ===
 
 Purpose of this addon is to enter fullscreen wherever a title is played in the Netflix web player.  So one can just press the play button and then take a seat and immediately watch in fullscreen without a need to bother about the fullscreen button anymore.

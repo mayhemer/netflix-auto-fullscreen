@@ -1,6 +1,6 @@
 {
   "description": "Automatically enters the fullscreen mode when playing a title",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Netflix Auto Fullscreen",
   "version": "1.2.0",
   "permissions": ["storage"],
@@ -8,13 +8,12 @@
   "content_scripts": [
     {
       "matches": ["https://www.netflix.com/*"],
-      "js": ["netflix-auto-fs.js"]
+      "js": ["browser-polyfill.js", "netflix-auto-fs.js"]
     }
   ],
 
   "options_ui": {
-    "page": "options.html",
-    "browser_style": true
+    "page": "options.html"
   },
   
   "browser_specific_settings": {
