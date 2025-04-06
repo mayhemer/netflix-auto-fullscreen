@@ -1,41 +1,23 @@
 /**
- * Netflix Auto Fullscreen add-on.
- *
- * Purpose is to enter fullscreen whereever a title is played, so one can
- * just press the play button and then take a seat and immediately watch in
- * fullscreen without a need to press the fullscreen button by hand.
- *
- * Technicalities:
- * The addon requests fullscreen on the player element directly, when a title
- * playback is started.  We wait for the player element using DOM MutaionObserver.
+ * Netflix Auto Fullscreen add-on for Firefox.
  * 
- * When autoplay is blocked, we assign a click handler to request fullscreen
- * on clicking the play-blocked play button.
- *
- * Then, we wait for one of two things: either appearance of a restart button
- * or of the "play" notification.  In the first case, it means the player
- * has been paused for a long time and user now has to restart the playback
- * by pressing the restart play button.  After that click, we request fullscreen
- * again.
- *
- * In case of the "play" notification hit, which happens on simply unpausing
- * the player, then, when enabled by preferences, we again requst fullscreen.
- * Cycle then loops by again waiting for either the restart element or the "play"
- * notification.
- *
- * Note: there is a limitation when this extension actually works.  It depends
- * on the delay between the user interaction making a title to start playback
- * and the video player element appearing in the UI.  If the delay is too long
- * the fullscreen request made may get rejected by the browser for security reasons.
+ * For details see README.md
  */
 
 (async () => {
   const log = (...args) => console.log(`Netflix Auto-fullscreen:`, ...args);
+  const err = (...args) => console.error(`Netflix Auto-fullscreen:`, ...args);
+  const assert = (condition, ...args) => console.assert(condition, `Netflix Auto-fullscreen:`, ...args);
+
+  const mount_point = document.querySelector('div#appMountPoint');
+  if (!mount_point) {
+    err('no #appMountPoint');
+    return;
+  }
 
   let config = {
     fs_on_short_play: "true"
   };
-
   const load_config = async () => {
     config = await browser.storage.sync.get(config);
     log('using configuration', config);
@@ -43,14 +25,7 @@
   browser.storage.onChanged.addListener(load_config);
   await load_config();
 
-  const mount_point = document.querySelector('div#appMountPoint');
-  if (!mount_point) {
-    log('no #appMountPoint');
-    return;
-  }
-
   let reject_running_guard = null;
-
   const observe_for = (root, condition) => {
     return new Promise((resolve, reject) => {
       const conclude = (observer, result) => {
@@ -64,7 +39,7 @@
           conclude(observer, result);
         }
       });
-      console.assert(!reject_running_guard, 'Netflix Auto-fullscreen: concurrent observers!');
+      assert(!reject_running_guard, 'concurrent observers!');
       reject_running_guard = () => conclude(observer);
       observer.observe(root, { subtree: true, childList: true });
     });
@@ -80,7 +55,7 @@
 
     const request_fs = watch_video => {
       if (!document.fullscreenElement) {
-        log(id, `requsting fullscreen`);
+        log(id, `requesting fullscreen`);
         watch_video.requestFullscreen();
       }
     };
@@ -92,7 +67,7 @@
         // Request fullscreen ASAP to be close to the user interaction.
         request_fs(watch_video);
 
-        // This is a child element we are using to save some observer notitications overhead.
+        // This is a child element we are using to save some observer notifications overhead.
         log(id, `started observing for player-view element`);
         const player_view = await until_element(mount_point, 'div.watch-video--player-view');
 
@@ -131,11 +106,8 @@
               break;
             case 'div.watch-video--playback-restart':
               watch_video = mount_point.querySelector('div.watch-video');
-
-              // NOTE: This may not work, as after the restart the watch-video element is recycled.
               const restart_play_button = watch_video.querySelector('div.watch-video--playback-restart button');
-              restart_play_button.addEventListener('click', _ => request_fs(watch_video));
-              
+              restart_play_button.addEventListener('click', _ => request_fs(watch_video));             
               log(id, `waiting for playback restart`);
               await while_element(watch_video, found);
               break;
