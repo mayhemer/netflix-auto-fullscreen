@@ -46,7 +46,6 @@
   };
 
   const until_element = (root, selector) => observe_for(root, root => root.querySelector(selector));
-  const until_element_or_fs = (root, selector) => observe_for(root, root => root.querySelector(selector) || document.fullscreenElement);
   const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
   const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
 
@@ -60,12 +59,8 @@
       }
     };
 
-    const assign_fs_on_click = (watch_video, element) => {
-      element.addEventListener('click', _ => request_fs(watch_video));
-    }
-
     try {
-      guarding: while (true) {
+      while (true) {
         log(id, `started observing for video player`);
         let watch_video = await until_element(mount_point, 'div.watch-video');
         // Request fullscreen ASAP to be close to the user interaction.
@@ -79,48 +74,24 @@
         watch_video = mount_point.querySelector('div.watch-video');
         request_fs(watch_video);
 
-        log(id, `started observing for fullscreen or blocked play button`);
-        const fs_or_blocked_button = await until_element_or_fs(player_view, 'button[data-uia="player-blocked-play"]');
-        if (fs_or_blocked_button === document.fullscreenElement) {
-          log(id, `fullscreen on!`);
-        } else {
-          log(id, 'will request fullscreen on player-blocked-play button click');
-          assign_fs_on_click(watch_video, fs_or_blocked_button);
-          assign_fs_on_click(watch_video, player_view.querySelector('div.watch-video--autoplay-blocked'));
-          await while_element(player_view, 'button[data-uia="player-blocked-play"]');
-        }
+        const video_element = await until_element(player_view, 'video');
+        video_element.addEventListener('play', _ => {
+          if (config.fs_on_short_play == "true") {
+            const watch_video = mount_point.querySelector('div.watch-video');
+            request_fs(watch_video);
+          }
+        });
 
-        restart: while (true) {
-          // This element is often recycled, rather re-query it here.
-          watch_video = mount_point.querySelector('div.watch-video');
-          // 'playback-restart' element is created after a long pause, when the video has to be restarted manually
-          // and I want auto-fs when the video is restarted again.
-          // 'playback-notification' element is created when we unpause a video after a short break, and this code
-          // allows re-entering of fullscreen on that action.  It's disputable if I want this behavior,
-          // hence a preference was made for users to decide.
-          log(id, `waiting for pause/restart`);
-          const found = await until_one_of(watch_video, ['div.watch-video--playback-restart', 'div.playback-notification--play']);
-          switch (found) {
-            case 'div.playback-notification--play':
-              await while_element(watch_video, found);
-              if (config.fs_on_short_play == "true") {
-                continue guarding;
-              } else {
-                continue restart;
-              }
-              break;
-            case 'div.watch-video--playback-restart':
-              watch_video = mount_point.querySelector('div.watch-video');
-              assign_fs_on_click(watch_video, watch_video.querySelector('div.watch-video--playback-restart button'));
-              log(id, `waiting for playback restart`);
-              await while_element(watch_video, found);
-              break;
-          }
-          // Having the condition here, rather than in the loop statement, to allow `continue restart` regardless of the fullscreen state.
-          if (!document.fullscreenElement) {
-            break restart;
-          }
-        }
+        // Appear on auto-play blocked or after a long pause.
+        log(id, `started observing for blocked playback`);
+        const blocked = await until_one_of(watch_video, [
+          'button[data-uia="player-blocked-play"]',
+          'div.watch-video--playback-restart'
+        ]);
+
+        // when removed, cycle again to request fs.
+        log(id, 'waiting for playback restart');
+        await while_element(player_view, blocked);
       }
     } catch(ex) {
       ex && err(id, ex);
