@@ -1,5 +1,5 @@
 /**
- * Netflix Auto Fullscreen add-on for Firefox  and Chrome.
+ * Netflix Auto Fullscreen add-on for Firefox and Chrome.
  *
  * For details see README.md
  */
