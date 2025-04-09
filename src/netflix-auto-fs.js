@@ -85,7 +85,7 @@
         // Appear on auto-play blocked or after a long pause.
         log(id, `started observing for blocked playback`);
         const blocked = await until_one_of(watch_video, [
-          'button[data-uia="player-blocked-play"]',
+          'div.watch-video--autoplay-blocked',
           'div.watch-video--playback-restart'
         ]);
 
