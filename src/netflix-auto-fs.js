@@ -91,7 +91,7 @@
 
         // when removed, cycle again to request fs.
         log(id, 'waiting for playback restart');
-        await while_element(player_view, blocked);
+        await while_element(watch_video, blocked);
       }
     } catch(ex) {
       ex && err(id, ex);
