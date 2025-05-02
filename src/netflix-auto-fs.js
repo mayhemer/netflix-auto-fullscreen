@@ -15,6 +15,9 @@
     return;
   }
 
+  document.addEventListener('fullscreenchange', _ => log('> in fullscreen:', !!document.fullscreenElement));
+
+
   let config = {
     fs_on_short_play: "true"
   };
@@ -24,6 +27,7 @@
   }
   browser.storage.onChanged.addListener(load_config);
   await load_config();
+
 
   let reject_running_guard = null;
   const observe_for = (root, condition) => {
@@ -47,53 +51,71 @@
 
   const until_element = (root, selector) => observe_for(root, root => root.querySelector(selector));
   const while_element = (root, selector) => observe_for(root, root => !root.querySelector(selector));
-  const until_one_of = (root, selectors) => observe_for(root, root => selectors.find(selector => root.querySelector(selector)));
+  const until_added_or_removed = (root, to_come, to_go) => observe_for(root, root => {
+    const added = to_come.find(s => root.querySelector(s));
+    const removed = to_go.find(e => !e.isConnected);
+    return (added || removed) ? { added, removed } : null;
+  });
+
 
   const guard_for_fullscreen = async (id) => {
     reject_running_guard && reject_running_guard();
 
-    const request_fs = watch_video => {
+    const request_fs = (watch_video, trigger) => {
       if (!document.fullscreenElement) {
-        log(id, `requesting fullscreen`);
+        log(id, `requesting fullscreen from`, trigger);
         watch_video.requestFullscreen();
       }
     };
 
     try {
-      while (true) {
+      main: while (true) {
         log(id, `started observing for video player`);
         let watch_video = await until_element(mount_point, 'div.watch-video');
         // Request fullscreen ASAP to be close to the user interaction.
-        request_fs(watch_video);
+        request_fs(watch_video, 'direct');
 
-        // This is a child element we are using to save some observer notifications overhead.
+        // We wait for this element to get a fresh and up-to-date playback UI.
         log(id, `started observing for player-view element`);
-        const player_view = await until_element(mount_point, 'div.watch-video--player-view');
+        await until_element(mount_point, 'div.watch-video--player-view');
 
         // Request fullscreen again in case the watch-video has recycled.
         watch_video = mount_point.querySelector('div.watch-video');
-        request_fs(watch_video);
+        request_fs(watch_video, 'direct backup');
 
-        const video_element = await until_element(player_view, 'video');
-        video_element.addEventListener('play', _ => {
-          if (config.fs_on_short_play == "true") {
-            const watch_video = mount_point.querySelector('div.watch-video');
-            request_fs(watch_video);
-          }
-        });
-
-        // Appear on auto-play blocked or after a long pause.
-        log(id, `started observing for blocked playback`);
-        const blocked = await until_one_of(watch_video, [
+        let added = [
+          'video',
+          // Appear on auto-play blocked or after a long pause.
           'div.watch-video--autoplay-blocked',
           'div.watch-video--playback-restart'
-        ]);
+        ];
+        let removed = [];
 
+        inner: while (true) {
+          log(id, `started observing for`, added.toString(), 'or when removed', removed);
+          const change = await until_added_or_removed(watch_video, added, removed);
+          if (change.added === 'video') {
+            log(id, `assigning <video>.onplay fullscreen event handler`);
+            const video_element = watch_video.querySelector('video');
+            video_element.addEventListener('play', _ => {
+              if (config.fs_on_short_play == "true") {
+                const watch_video = mount_point.querySelector('div.watch-video');
+                request_fs(watch_video, '<video>.onplay');
+              }
+            });
+          }
+          if (change.removed) {
+            log(id, change.removed, `was removed`);
+            // We are either no longer blocked or we jump to the next episode.
+            break inner;
+          }
+
+          added = added.filter(e => e != change.added);
+          removed.push(watch_video.querySelector(change.added));
+        }
         // when removed, cycle again to request fs.
-        log(id, 'waiting for playback restart');
-        await while_element(watch_video, blocked);
       }
-    } catch(ex) {
+    } catch (ex) {
       ex && err(id, ex);
     }
     log(id, `exited`);
