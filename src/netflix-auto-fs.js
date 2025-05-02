@@ -58,6 +58,28 @@
   });
 
 
+  class Delay {
+    #delay;
+    #epoch = false;
+
+    constructor(delay) {
+      this.#delay = delay;
+    }
+    hit() {
+      this.#epoch = Date.now();
+    }
+    reset() {
+      this.#epoch = false;
+    }
+    get passed() {
+      return this.#epoch && (Date.now() - this.#epoch) > this.#delay;
+    }
+    get pending() {
+      return this.#epoch && !this.passed;
+    }
+  }
+
+
   const guard_for_fullscreen = async (id) => {
     reject_running_guard && reject_running_guard();
 
@@ -92,17 +114,27 @@
         let removed = [];
 
         inner: while (true) {
-          log(id, `started observing for`, added.toString(), 'or when removed', removed);
+          log(id, `started observing for`, added, 'or removal of', removed);
           const change = await until_added_or_removed(watch_video, added, removed);
           if (change.added === 'video') {
             log(id, `assigning <video>.onplay fullscreen event handler`);
+            const seek_delay = new Delay(1200);
+            const pause_delay = new Delay(5 * 60 * 1000); // always fs on unpause after 5 minutes
+
             const video_element = watch_video.querySelector('video');
             video_element.addEventListener('play', _ => {
-              if (config.fs_on_short_play == "true") {
+              if (seek_delay.pending) {
+                log(id, 'play after seeking, ignored');
+                return;
+              }
+              if (config.fs_on_short_play == "true" || pause_delay.passed) {
+                pause_delay.reset();
                 const watch_video = mount_point.querySelector('div.watch-video');
                 request_fs(watch_video, '<video>.onplay');
               }
             });
+            video_element.addEventListener('seeked', _ => seek_delay.hit());
+            video_element.addEventListener('pause', _ => pause_delay.hit());
           }
           if (change.removed) {
             log(id, change.removed, `was removed`);
