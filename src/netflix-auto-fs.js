@@ -124,6 +124,8 @@
             const video_element = watch_video.querySelector('video');
             video_element.addEventListener('play', _ => {
               if (seek_delay.pending) {
+                // this condition might be put after `pause_delay.reset();` for better
+                // state consistency, but effectively doesn't change anything.
                 log(id, 'play after seeking, ignored');
                 return;
               }
